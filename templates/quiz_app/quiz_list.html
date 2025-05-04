@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Islamic Quiz - Test Your Knowledge</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .quiz-list {
+            list-style: none;
+            padding: 0;
+        }
+        .quiz-item {
+            background: white;
+            margin-bottom: 15px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .quiz-item:hover {
+            transform: translateY(-2px);
+        }
+        .quiz-link {
+            text-decoration: none;
+            color: #2c3e50;
+            font-size: 1.2em;
+            display: block;
+        }
+        .quiz-link:hover {
+            color: #3498db;
+        }
+        .no-quizzes {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .arabic-decoration {
+            font-family: 'Traditional Arabic', 'Arial', sans-serif;
+            color: #8e44ad;
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Islamic Quiz</h1>
+            <div class="arabic-decoration">اختبار معلوماتك الإسلامية</div>
+        </header>
+        
+        <ul class="quiz-list">
+            {% for quiz in quizzes %}
+                <li class="quiz-item">
+                    <a href="{% url 'quiz_detail' quiz.id %}" class="quiz-link">
+                        {{ quiz.title }}
+                    </a>
+                </li>
+            {% empty %}
+                <li class="no-quizzes">
+                    <p>No quizzes available at the moment.</p>
+                    <div class="arabic-decoration">لا توجد اختبارات متاحة حالياً</div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html> 

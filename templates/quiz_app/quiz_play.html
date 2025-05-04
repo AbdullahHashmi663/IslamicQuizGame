@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Islamic Warrior Quiz - Play</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .fade.show {
+            opacity: 1;
+        }
+        .btn-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-emerald-900 to-gray-800 min-h-screen flex items-center justify-center">
+    <!-- Sound Effects -->
+    <!-- Riser sound: Replace src with your direct mp3 if available -->
+    <audio id="sfx-riser" src="/static/riser.m4a"></audio>
+    <audio id="sfx-sword" src="/static/sword.m4a"></audio>
+    <audio id="sfx-shield" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b6b6b7.mp3"></audio>
+    <audio id="sfx-next" src="https://cdn.pixabay.com/audio/2022/07/26/audio_124bfae3c7.mp3"></audio>
+    <div class="w-full max-w-2xl mx-auto bg-gray-900 rounded-xl shadow-2xl border-4 border-yellow-600 p-8">
+        <div class="flex flex-col items-center mb-6">
+            <svg class="w-14 h-14 text-yellow-500 mb-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h1 class="text-3xl font-extrabold text-yellow-400 tracking-wide mb-1 font-serif">Islamic Warrior Quiz</h1>
+        </div>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+            <div class="text-lg font-bold text-yellow-400 text-center">
+                <span id="timer">Time Left: {{ timer }} seconds</span>
+            </div>
+            <div class="w-full md:w-1/2">
+                <div class="flex items-center gap-2">
+                    <span id="progress-label" class="text-emerald-300 font-semibold"></span>
+                    <div class="flex-1 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="h-3 bg-yellow-500 transition-all duration-300" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <form id="quiz-form" method="post" action="{% url 'quiz_submit' %}" class="space-y-8">
+            {% csrf_token %}
+            <input type="hidden" name="time_taken" id="time_taken" value="0">
+            <input type="hidden" name="bonus_awarded" id="bonus_awarded" value="0">
+            {% for question in questions %}
+                <div class="question-step fade" id="question-step-{{ forloop.counter0 }}" style="display: {% if forloop.first %}block{% else %}none{% endif %};">
+                    <div class="bg-gray-800 rounded-lg p-6 mb-2 border-l-4 border-emerald-600 shadow-md">
+                        <div class="text-lg font-bold text-yellow-300 mb-3 flex items-center">
+                            <span class="inline-block w-8 h-8 bg-emerald-700 text-yellow-200 rounded-full flex items-center justify-center mr-3 font-extrabold border-2 border-yellow-500">{{ forloop.counter }}</span>
+                            {{ question.text }}
+                        </div>
+                        <ul class="space-y-2">
+                            {% for answer in question.answer_set.all %}
+                                <li>
+                                    <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg transition hover:bg-emerald-900">
+                                        <input type="radio" name="question_{{ question.id }}_step" value="{{ answer.id }}" class="form-radio h-5 w-5 text-yellow-500 focus:ring-yellow-500" data-question-index="{{ forloop.parentloop.counter0 }}" data-question-id="{{ question.id }}">
+                                        <span class="text-gray-100 font-medium">{{ answer.text }}</span>
+                                    </label>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="flex justify-between mt-4 gap-2">
+                        <button type="button" class="back-btn w-1/3 py-3 bg-emerald-700 hover:bg-emerald-800 text-yellow-100 font-bold rounded-lg shadow transition duration-200 border-2 border-emerald-500" data-step="{{ forloop.counter0 }}" {% if forloop.first %}style="visibility:hidden"{% endif %}>Back</button>
+                        <button type="button" class="next-btn w-2/3 py-3 bg-yellow-600 hover:bg-yellow-700 text-gray-900 font-extrabold rounded-lg shadow-lg transition duration-200 text-xl tracking-wider border-2 border-yellow-400 btn-disabled" data-step="{{ forloop.counter0 }}" disabled>{% if forloop.last %}Submit{% else %}Next{% endif %}</button>
+                    </div>
+                </div>
+            {% endfor %}
+            <!-- Hidden answer fields for submission -->
+            {% for question in questions %}
+                <input type="hidden" name="question_{{ question.id }}" id="hidden-question-{{ question.id }}">
+            {% endfor %}
+        </form>
+        <div class="mt-8 text-center text-emerald-400 italic text-sm">Fight bravely, O Warrior! Time is your greatest foe.</div>
+    </div>
+    <script>
+        let timeLeft = {{ timer }};
+        let timerInterval;
+        let startTime = Date.now();
+        let bonusAdded = false;
+        let correctAnswers = {};
+        {% for question in questions|slice:":5" %}
+            {% for answer in question.answer_set.all %}
+                {% if answer.is_correct %}
+                    correctAnswers["question_{{ question.id }}"] = "{{ answer.id }}";
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        let currentStep = 0;
+        const totalSteps = {{ questions|length }};
+        const firstFiveQids = [
+            {% for question in questions|slice:":5" %}'{{ question.id }}',{% endfor %}
+        ];
+
+        function showStep(step) {
+            for (let i = 0; i < totalSteps; i++) {
+                const el = document.getElementById('question-step-' + i);
+                if (i === step) {
+                    el.style.display = 'block';
+                    setTimeout(() => el.classList.add('show'), 10);
+                } else {
+                    el.classList.remove('show');
+                    setTimeout(() => el.style.display = 'none', 300);
+                }
+            }
+            // Progress bar and label
+            document.getElementById('progress-label').textContent = `Question ${step + 1} of ${totalSteps}`;
+            document.getElementById('progress-bar').style.width = `${((step + 1) / totalSteps) * 100}%`;
+            // Enable/disable next button
+            updateNextButtonState();
+            // Always check bonus on navigation
+            checkFirstFiveBonus();
+        }
+
+        function updateNextButtonState() {
+            const radios = document.querySelectorAll(`#question-step-${currentStep} input[type=radio]`);
+            const nextBtn = document.querySelector(`#question-step-${currentStep} .next-btn`);
+            let answered = false;
+            radios.forEach(radio => { if (radio.checked) answered = true; });
+            if (answered) {
+                nextBtn.classList.remove('btn-disabled');
+                nextBtn.disabled = false;
+            } else {
+                nextBtn.classList.add('btn-disabled');
+                nextBtn.disabled = true;
+            }
+        }
+
+        function updateTimer() {
+            document.getElementById('timer').textContent = 'Time Left: ' + timeLeft + ' seconds';
+            if (timeLeft <= 0) {
+                document.getElementById('quiz-form').submit();
+            } else {
+                timerInterval = setTimeout(function() {
+                    timeLeft--;
+                    updateTimer();
+                }, 1000);
+            }
+        }
+
+        function checkFirstFiveBonus() {
+            let allAnswered = true;
+            let allCorrect = true;
+            for (let i = 0; i < 5; i++) {
+                let qid = firstFiveQids[i];
+                let val = document.getElementById('hidden-question-' + qid).value;
+                if (!val) {
+                    allAnswered = false;
+                    allCorrect = false;
+                    break;
+                }
+                if (val !== correctAnswers['question_' + qid]) {
+                    allCorrect = false;
+                }
+            }
+            let timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            if (allAnswered && allCorrect && timeSpent <= 20 && !bonusAdded) {
+                timeLeft += 10;
+                bonusAdded = true;
+                document.getElementById('bonus_awarded').value = '1';
+                updateTimer();
+                document.getElementById('timer').textContent += ' (+10s bonus!)';
+            }
+        }
+
+        document.querySelectorAll('input[type=radio]').forEach(function(radio) {
+            radio.addEventListener('change', function(e) {
+                let qid = e.target.getAttribute('data-question-id');
+                document.getElementById('hidden-question-' + qid).value = e.target.value;
+                // Enable next button
+                updateNextButtonState();
+                // Play sword or shield sound
+                if (correctAnswers['question_' + qid] && e.target.value === correctAnswers['question_' + qid]) {
+                    document.getElementById('sfx-sword').currentTime = 0;
+                    document.getElementById('sfx-sword').play();
+                } else {
+                    document.getElementById('sfx-shield').currentTime = 0;
+                    document.getElementById('sfx-shield').play();
+                }
+                // Always check bonus on answer select
+                checkFirstFiveBonus();
+                // Auto-next on answer select
+                setTimeout(function() {
+                    if (currentStep < totalSteps - 1) {
+                        nextStep();
+                    } else {
+                        document.getElementById('quiz-form').submit();
+                    }
+                }, 200);
+            });
+        });
+
+        function nextStep() {
+            if (currentStep < totalSteps - 1) {
+                currentStep++;
+                showStep(currentStep);
+                // Play next sound
+                document.getElementById('sfx-next').currentTime = 0;
+                document.getElementById('sfx-next').play();
+            }
+        }
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+
+        document.querySelectorAll('.next-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (currentStep < totalSteps - 1) {
+                    nextStep();
+                } else {
+                    document.getElementById('quiz-form').submit();
+                }
+            });
+        });
+        document.querySelectorAll('.back-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                prevStep();
+            });
+        });
+
+        document.getElementById('quiz-form').addEventListener('submit', function(e) {
+            let timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('time_taken').value = timeSpent;
+        });
+
+        window.onload = function() {
+            // Play riser sound on quiz start
+            document.getElementById('sfx-riser').currentTime = 0;
+            document.getElementById('sfx-riser').play();
+            showStep(0);
+            updateTimer();
+        };
+    </script>
+</body>
+</html> 
