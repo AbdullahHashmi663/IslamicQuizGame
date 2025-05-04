@@ -1,0 +1,1 @@
+web: gunicorn islamic_quiz.wsgi --log-file - 
